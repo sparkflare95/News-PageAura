@@ -6,7 +6,7 @@ const DOMAIN = 'https://news.pageaura.xyz';
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const DEST_FILE = path.join(ROOT, 'destination.txt');
-const URLS_FILE = path.join(ROOT, 'urls.txt');
+const GLOBAL_URLS_FILE = path.join(ROOT, 'urls.txt');
 
 // Helper: Generate random 7-character alphanumeric string
 function generateSlug(length = 7) {
@@ -24,9 +24,9 @@ function escapeXml(str) {
 }
 
 function run() {
-  console.log('--- Starting News-PageAura Page & Sitemap Generation ---');
+  console.log('--- Starting Batch Page & Sitemap Generation for ALL destination URLs ---');
 
-  // 1. Read destination URLs from destination.txt
+  // 1. Read all destination URLs from destination.txt
   if (!fs.existsSync(DEST_FILE)) {
     console.error('ERROR: destination.txt not found!');
     process.exit(1);
@@ -42,29 +42,29 @@ function run() {
     process.exit(1);
   }
 
-  // Pick a random destination URL from the pool
-  const targetUrl = destinations[Math.floor(Math.random() * destinations.length)];
-
-  // 2. Get current UTC or local date-time hierarchy
+  // 2. Get current UTC date-time hierarchy
   const now = new Date();
   const year = String(now.getUTCFullYear());
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   const day = String(now.getUTCDate()).padStart(2, '0');
   const hour = String(now.getUTCHours()).padStart(2, '0');
 
-  const slug = generateSlug(7);
-  const title = `Breaking News Update ${year}-${month}-${day} ${slug}`;
+  const generatedUrlsThisRun = [];
 
-  // Relative path & full URL
-  const relPath = `${year}/${month}/${day}/${hour}/${slug}`;
-  const fullPageUrl = `${DOMAIN}/${relPath}/`;
-  const targetFolder = path.join(PUBLIC_DIR, year, month, day, hour, slug);
+  // 3. Loop through EACH destination URL and create its hierarchical HTML page
+  for (const targetUrl of destinations) {
+    const slug = generateSlug(7);
+    const title = `Breaking News Update ${year}-${month}-${day} ${slug}`;
 
-  // Create hierarchical folder
-  fs.mkdirSync(targetFolder, { recursive: true });
+    const relPath = `${year}/${month}/${day}/${hour}/${slug}`;
+    const fullPageUrl = `${DOMAIN}/${relPath}/`;
+    const targetFolder = path.join(PUBLIC_DIR, year, month, day, hour, slug);
 
-  // 3. Generate SEO-friendly index.html with JS redirect & fallback link
-  const htmlContent = `<!DOCTYPE html>
+    // Create hierarchical folder
+    fs.mkdirSync(targetFolder, { recursive: true });
+
+    // Generate SEO-friendly index.html
+    const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -85,30 +85,49 @@ function run() {
 </body>
 </html>`;
 
-  fs.writeFileSync(path.join(targetFolder, 'index.html'), htmlContent, 'utf8');
-  console.log(`Generated page at: ${relPath}`);
-
-  // Save generated URL to urls.txt history
-  let existingUrls = [];
-  if (fs.existsSync(URLS_FILE)) {
-    existingUrls = fs.readFileSync(URLS_FILE, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  }
-  if (!existingUrls.includes(fullPageUrl)) {
-    existingUrls.push(fullPageUrl);
-    fs.writeFileSync(URLS_FILE, existingUrls.join('\n') + '\n', 'utf8');
+    fs.writeFileSync(path.join(targetFolder, 'index.html'), htmlContent, 'utf8');
+    generatedUrlsThisRun.push(fullPageUrl);
   }
 
-  // 4. Hierarchical Sitemap Generation (Master -> Year -> Month -> Day -> Hour)
+  console.log(`Successfully generated ${generatedUrlsThisRun.length} pages for this hour.`);
+
+  // 4. Save to global root urls.txt history
+  let globalUrls = [];
+  if (fs.existsSync(GLOBAL_URLS_FILE)) {
+    globalUrls = fs.readFileSync(GLOBAL_URLS_FILE, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  }
+  
+  for (const u of generatedUrlsThisRun) {
+    if (!globalUrls.includes(u)) {
+      globalUrls.push(u);
+    }
+  }
+  fs.writeFileSync(GLOBAL_URLS_FILE, globalUrls.join('\n') + '\n', 'utf8');
+
+  // 5. Save Hour-wise urls.txt inside hierarchical public folder (e.g., public/2026/11/15/23/urls.txt)
+  const hourFolderDir = path.join(PUBLIC_DIR, year, month, day, hour);
+  fs.mkdirSync(hourFolderDir, { recursive: true });
+  
+  // Read existing hourly urls if any, and append new ones
+  const hourlyUrlsFilePath = path.join(hourFolderDir, 'urls.txt');
+  let hourlyUrls = [];
+  if (fs.existsSync(hourlyUrlsFilePath)) {
+    hourlyUrls = fs.readFileSync(hourlyUrlsFilePath, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  }
+  for (const u of generatedUrlsThisRun) {
+    if (!hourlyUrls.includes(u)) {
+      hourlyUrls.push(u);
+    }
+  }
+  fs.writeFileSync(hourlyUrlsFilePath, hourlyUrls.join('\n') + '\n', 'utf8');
+  console.log(`Saved hourly URLs list at: public/${year}/${month}/${day}/${hour}/urls.txt`);
+
+  // 6. Hierarchical Sitemap Generation (Master -> Year -> Month -> Day -> Hour Sitemaps)
   const sitemapsDir = path.join(PUBLIC_DIR, 'sitemaps');
   fs.mkdirSync(sitemapsDir, { recursive: true });
 
-  // Read all generated pages from urls.txt to organize in hierarchical sitemaps
-  // Grouping URLs by Year/Month/Day/Hour
-  const hierarchy = {}; // { year: { month: { day: { hour: [ {url, title, date} ] } } } }
-
-  // For this run, we can also scan existing htmls or build from urls.txt
-  // Let's parse all URLs in urls.txt
-  for (const urlStr of existingUrls) {
+  const hierarchy = {};
+  for (const urlStr of globalUrls) {
     try {
       const u = new URL(urlStr);
       const parts = u.pathname.split('/').filter(Boolean);
@@ -126,13 +145,11 @@ function run() {
         });
       }
     } catch (e) {
-      // skip invalid
+      // skip
     }
   }
 
   const lastmod = now.toISOString();
-
-  // Generate Hour, Day, Month, Year Sitemaps
   const yearFiles = [];
 
   for (const y of Object.keys(hierarchy)) {
@@ -142,7 +159,6 @@ function run() {
       for (const d of Object.keys(hierarchy[y][m])) {
         const hourFiles = [];
         for (const h of Object.keys(hierarchy[y][m][d])) {
-          // Hour Sitemap (Contains actual URLs with <news:news>)
           let hourXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
           hourXml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n';
           
@@ -169,7 +185,6 @@ function run() {
           hourFiles.push(`${DOMAIN}/sitemaps/${hourFilename}`);
         }
 
-        // Day Sitemap Index linking to Hour sitemaps
         let dayXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
         dayXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
         for (const hUrl of hourFiles) {
@@ -182,7 +197,6 @@ function run() {
         dayFiles.push(`${DOMAIN}/sitemaps/${dayFilename}`);
       }
 
-      // Month Sitemap Index
       let monthXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
       monthXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
       for (const dUrl of dayFiles) {
@@ -195,7 +209,6 @@ function run() {
       monthFiles.push(`${DOMAIN}/sitemaps/${monthFilename}`);
     }
 
-    // Year Sitemap Index
     let yearXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     yearXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
     for (const mUrl of monthFiles) {
@@ -208,7 +221,6 @@ function run() {
     yearFiles.push(`${DOMAIN}/sitemaps/${yearFilename}`);
   }
 
-  // Master Sitemap Index (`public/sitemap.xml`) linking to Year sitemaps
   let masterXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   masterXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
   for (const yUrl of yearFiles) {
@@ -219,19 +231,18 @@ function run() {
   fs.writeFileSync(path.join(PUBLIC_DIR, 'sitemap.xml'), masterXml, 'utf8');
   console.log('Hierarchical sitemaps generated successfully.');
 
-  // 5. Automatic Git Commit and Push
+  // 7. Automatic Git Commit and Push
   try {
     console.log('Committing changes to GitHub...');
     execSync('git config --global user.name "github-actions[bot]"');
     execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"');
     execSync('git add public/ urls.txt destination.txt');
     
-    // Check if there are changes to commit
     const status = execSync('git status --porcelain').toString();
     if (status.trim().length > 0) {
-      execSync('git commit -m "chore: auto-generate hierarchical pages and sitemaps [skip ci]"');
+      execSync('git commit -m "chore: batch generate pages, hourly urls lists and sitemaps [skip ci]"');
       execSync('git push');
-      console.log('Successfully pushed changes to GitHub repo sparkflare95/News-PageAura.');
+      console.log('Successfully pushed changes to GitHub.');
     } else {
       console.log('No new changes to commit.');
     }
