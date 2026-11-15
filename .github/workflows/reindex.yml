@@ -28,6 +28,10 @@ jobs:
       - name: Verify Required Files
         shell: bash
         run: |
+          test -f destination.txt || {
+            echo "ERROR: destination.txt is missing."
+            exit 1
+          }
           test -f urls.txt || touch urls.txt
           test -f public/index.html || {
             echo "ERROR: public/index.html is missing."
@@ -45,9 +49,9 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add urls.txt public/_redirects
+          git add urls.txt destination.txt public/_redirects
           git diff --quiet && git diff --staged --quiet || {
-            git commit -m "chore: auto-generate random redirect and preserve history [skip ci]"
+            git commit -m "chore: auto-generate random redirects from destination.txt and preserve history [skip ci]"
             git push
           }
 
