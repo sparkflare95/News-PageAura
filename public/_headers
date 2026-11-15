@@ -1,7 +1,10 @@
 /secure/page
-  X-Frame-Options: DENY
+  X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
-  Referrer-Policy: no-referrer
+  Referrer-Policy: strict-origin-when-cross-origin
 
 /static/*
   Access-Control-Allow-Origin: *
+
+/*
+  X-Robots-Tag: index, follow
