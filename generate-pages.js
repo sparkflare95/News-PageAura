@@ -63,13 +63,14 @@ function run() {
     // Create hierarchical folder
     fs.mkdirSync(targetFolder, { recursive: true });
 
-    // Generate SEO-friendly index.html with both Meta robots and JS redirect
+    // Generate SEO-friendly index.html with Meta Refresh, Robots, Dofollow link, and JS redirect
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="index, follow">
+    <meta http-equiv="refresh" content="2.5;url=${targetUrl}">
     <title>${escapeXml(title)}</title>
     <link rel="canonical" href="${fullPageUrl}">
     <script>
@@ -81,7 +82,7 @@ function run() {
 <body>
     <h1>${escapeXml(title)}</h1>
     <p>Redirecting to breaking news source...</p>
-    <p>If you are not redirected automatically, please click <a href="${targetUrl}" rel="nofollow">here</a>.</p>
+    <p>If you are not redirected automatically, please click <a href="${targetUrl}">here</a>.</p>
 </body>
 </html>`;
 
@@ -206,7 +207,7 @@ function run() {
     
     const status = execSync('git status --porcelain').toString();
     if (status.trim().length > 0) {
-      execSync('git commit -m "chore: batch generate pages with dual robots tags and flat sitemaps [skip ci]"');
+      execSync('git commit -m "chore: batch generate pages with meta refresh, dofollow links and flat sitemaps [skip ci]"');
       execSync('git push');
       console.log('Successfully pushed changes to GitHub.');
     } else {
