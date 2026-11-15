@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <sitemap><loc>https://news.pageaura.xyz/sitemaps/sitemap-2026.xml</loc><lastmod>2026-11-15T18:53:47.755Z</lastmod></sitemap>
+  <sitemap>
+    <loc>https://news.pageaura.xyz/sitemaps/sitemap-2026-11-15-18.xml</loc>
+    <lastmod>2026-11-15T19:14:45.512Z</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://news.pageaura.xyz/sitemaps/sitemap-2026-11-15-19.xml</loc>
+    <lastmod>2026-11-15T19:14:45.512Z</lastmod>
+  </sitemap>
 </sitemapindex>
