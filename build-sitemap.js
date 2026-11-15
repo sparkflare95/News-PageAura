@@ -8,16 +8,10 @@ const KEY_FILENAME = `${KEY}.txt`;
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const URLS_FILE = path.join(ROOT, 'urls.txt');
+const DEST_FILE = path.join(ROOT, 'destination.txt');
 const REDIRECTS_FILE = path.join(PUBLIC_DIR, '_redirects');
 const SITEMAP_FILE = path.join(PUBLIC_DIR, 'sitemap.xml');
 const ROOT_KEY_FILE = path.join(ROOT, KEY_FILENAME);
-
-// Target destination links pool
-const TARGET_DESTINATIONS = [
-  "https://docs.google.com/forms/d/1bYAG8-tN6-j_A9OHAd_Pk2vk167nBda8mvjCixWqFrU/edit",
-  "https://docs.google.com/forms/d/1SVagHdDqsiqd7SCWcVK5xqvonSPW6-H1ELcgHpKlWZQ/edit",
-  "https://docs.google.com/forms/d/1nyXb6NssG8gFRsVXJG6twEhMF1Qxy19A-PlTErG5U7w/edit"
-];
 
 function generateRandomString(length = 7) {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -28,7 +22,7 @@ function generateRandomString(length = 7) {
   return result;
 }
 
-// 1. Read existing redirects history from public/_redirects
+// 1. Read existing redirects history from public/_redirects to preserve them permanently
 let existingRedirectLines = [];
 if (fs.existsSync(REDIRECTS_FILE)) {
   existingRedirectLines = fs.readFileSync(REDIRECTS_FILE, 'utf8')
@@ -37,7 +31,8 @@ if (fs.existsSync(REDIRECTS_FILE)) {
     .filter(Boolean);
 }
 
-const redirectMap = new Map();
+// Map: destination -> path (so we don't duplicate the same dest if already assigned, or map path -> dest)
+const redirectMap = new Map(); // path -> destination
 for (const line of existingRedirectLines) {
   if (line.startsWith('#')) continue;
   const parts = line.split(/\s+/);
@@ -46,16 +41,39 @@ for (const line of existingRedirectLines) {
   }
 }
 
-// 2. Generate a new random redirect rule per build
-const randomSlug = `/${generateRandomString(7)}`;
-const randomDestination = TARGET_DESTINATIONS[Math.floor(Math.random() * TARGET_DESTINATIONS.length)];
-
-if (!redirectMap.has(randomSlug)) {
-  redirectMap.set(randomSlug, randomDestination);
+// 2. Read destinations from destination.txt
+let destinations = [];
+if (fs.existsSync(DEST_FILE)) {
+  destinations = fs.readFileSync(DEST_FILE, 'utf8')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
 }
 
-// Save back updated _redirects
-let redirectsContent = "# Cloudflare Pages Redirect Rules (Cumulative & Preserved)\n";
+// Ensure every destination has a random short-string path mapped in _redirects
+for (const dest of destinations) {
+  // Check if this destination already has a path assigned
+  let assignedPath = null;
+  for (const [p, d] of redirectMap.entries()) {
+    if (d === dest) {
+      assignedPath = p;
+      break;
+    }
+  }
+
+  // If not assigned yet, generate a unique random slug
+  if (!assignedPath) {
+    let newSlug;
+    do {
+      newSlug = `/${generateRandomString(7)}`;
+    } while (redirectMap.has(newSlug));
+
+    redirectMap.set(newSlug, dest);
+  }
+}
+
+// 3. Rebuild cumulative _redirects content preserving all history
+let redirectsContent = "# Cloudflare Pages Redirect Rules (Preserved Cumulative History)\n";
 for (const [p, d] of redirectMap.entries()) {
   redirectsContent += `${p}    ${d}    301\n`;
 }
@@ -63,7 +81,7 @@ for (const [p, d] of redirectMap.entries()) {
 fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 fs.writeFileSync(REDIRECTS_FILE, redirectsContent.trim() + '\n', 'utf8');
 
-// 3. Read existing URLs from urls.txt history
+// 4. Read existing urls.txt history
 let existingUrls = [];
 if (fs.existsSync(URLS_FILE)) {
   existingUrls = fs.readFileSync(URLS_FILE, 'utf8')
@@ -72,7 +90,7 @@ if (fs.existsSync(URLS_FILE)) {
     .filter(Boolean);
 }
 
-// 4. Combine base domain, all historical urls.txt entries, AND all redirect paths into a Set
+// 5. Build cumulative URLs set
 const urlsSet = new Set(existingUrls);
 urlsSet.add(`${DOMAIN}/`);
 
@@ -96,7 +114,7 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-// 5. Generate Sitemap XML containing ALL cumulative URLs
+// 6. Generate Sitemap XML containing all preserved URLs
 let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
 xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n';
 xml += '        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n';
@@ -134,4 +152,4 @@ xml += '</urlset>\n';
 fs.writeFileSync(SITEMAP_FILE, xml, 'utf8');
 fs.writeFileSync(path.join(PUBLIC_DIR, KEY_FILENAME), KEY, 'utf8');
 
-console.log(`Successfully generated sitemap. Total cumulative URLs included: ${finalUrls.length}`);
+console.log(`Successfully generated redirects & sitemap. Total preserved redirects: ${redirectMap.size}, Total URLs in Sitemap: ${finalUrls.length}`);
