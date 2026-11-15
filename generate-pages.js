@@ -104,11 +104,10 @@ function run() {
   }
   fs.writeFileSync(GLOBAL_URLS_FILE, globalUrls.join('\n') + '\n', 'utf8');
 
-  // 5. Save Hour-wise urls.txt inside hierarchical public folder (e.g., public/2026/11/15/23/urls.txt)
+  // 5. Save Hour-wise urls.txt inside hierarchical public folder
   const hourFolderDir = path.join(PUBLIC_DIR, year, month, day, hour);
   fs.mkdirSync(hourFolderDir, { recursive: true });
   
-  // Read existing hourly urls if any, and append new ones
   const hourlyUrlsFilePath = path.join(hourFolderDir, 'urls.txt');
   let hourlyUrls = [];
   if (fs.existsSync(hourlyUrlsFilePath)) {
@@ -120,9 +119,10 @@ function run() {
     }
   }
   fs.writeFileSync(hourlyUrlsFilePath, hourlyUrls.join('\n') + '\n', 'utf8');
-  console.log(`Saved hourly URLs list at: public/${year}/${month}/${day}/${hour}/urls.txt`);
 
-  // 6. Hierarchical Sitemap Generation (Master -> Year -> Month -> Day -> Hour Sitemaps)
+  // 6. Simplified Sitemap Generation (Avoiding Deep Nested Index Errors)
+  // Instead of multi-level indexes pointing to indexes, we create a direct Master Sitemap Index
+  // pointing directly to the Hour-level URL sitemaps (or a clean flat list of sitemaps).
   const sitemapsDir = path.join(PUBLIC_DIR, 'sitemaps');
   fs.mkdirSync(sitemapsDir, { recursive: true });
 
@@ -150,14 +150,11 @@ function run() {
   }
 
   const lastmod = now.toISOString();
-  const yearFiles = [];
+  const allHourSitemaps = [];
 
   for (const y of Object.keys(hierarchy)) {
-    const monthFiles = [];
     for (const m of Object.keys(hierarchy[y])) {
-      const dayFiles = [];
       for (const d of Object.keys(hierarchy[y][m])) {
-        const hourFiles = [];
         for (const h of Object.keys(hierarchy[y][m][d])) {
           let hourXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
           hourXml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n';
@@ -182,54 +179,25 @@ function run() {
 
           const hourFilename = `sitemap-${y}-${m}-${d}-${h}.xml`;
           fs.writeFileSync(path.join(sitemapsDir, hourFilename), hourXml, 'utf8');
-          hourFiles.push(`${DOMAIN}/sitemaps/${hourFilename}`);
+          allHourSitemaps.push(`${DOMAIN}/sitemaps/${hourFilename}`);
         }
-
-        let dayXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-        dayXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-        for (const hUrl of hourFiles) {
-          dayXml += `  <sitemap><loc>${hUrl}</loc><lastmod>${lastmod}</lastmod></sitemap>\n`;
-        }
-        dayXml += '</sitemapindex>\n';
-
-        const dayFilename = `sitemap-${y}-${m}-${d}.xml`;
-        fs.writeFileSync(path.join(sitemapsDir, dayFilename), dayXml, 'utf8');
-        dayFiles.push(`${DOMAIN}/sitemaps/${dayFilename}`);
       }
-
-      let monthXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-      monthXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-      for (const dUrl of dayFiles) {
-        monthXml += `  <sitemap><loc>${dUrl}</loc><lastmod>${lastmod}</lastmod></sitemap>\n`;
-      }
-      monthXml += '</sitemapindex>\n';
-
-      const monthFilename = `sitemap-${y}-${m}.xml`;
-      fs.writeFileSync(path.join(sitemapsDir, monthFilename), monthXml, 'utf8');
-      monthFiles.push(`${DOMAIN}/sitemaps/${monthFilename}`);
     }
-
-    let yearXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    yearXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-    for (const mUrl of monthFiles) {
-      yearXml += `  <sitemap><loc>${mUrl}</loc><lastmod>${lastmod}</lastmod></sitemap>\n`;
-    }
-    yearXml += '</sitemapindex>\n';
-
-    const yearFilename = `sitemap-${y}.xml`;
-    fs.writeFileSync(path.join(sitemapsDir, yearFilename), yearXml, 'utf8');
-    yearFiles.push(`${DOMAIN}/sitemaps/${yearFilename}`);
   }
 
+  // Generate a clean master sitemap index directly pointing to the hour sitemaps (preventing multi-index loops)
   let masterXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   masterXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-  for (const yUrl of yearFiles) {
-    masterXml += `  <sitemap><loc>${yUrl}</loc><lastmod>${lastmod}</lastmod></sitemap>\n`;
+  for (const hUrl of allHourSitemaps) {
+    masterXml += `  <sitemap>\n`;
+    masterXml += `    <loc>${hUrl}</loc>\n`;
+    masterXml += `    <lastmod>${lastmod}</lastmod>\n`;
+    masterXml += `  </sitemap>\n`;
   }
   masterXml += '</sitemapindex>\n';
 
   fs.writeFileSync(path.join(PUBLIC_DIR, 'sitemap.xml'), masterXml, 'utf8');
-  console.log('Hierarchical sitemaps generated successfully.');
+  console.log('Clean hierarchical sitemaps generated successfully.');
 
   // 7. Automatic Git Commit and Push
   try {
@@ -240,7 +208,7 @@ function run() {
     
     const status = execSync('git status --porcelain').toString();
     if (status.trim().length > 0) {
-      execSync('git commit -m "chore: batch generate pages, hourly urls lists and sitemaps [skip ci]"');
+      execSync('git commit -m "chore: batch generate pages, hourly urls lists and flat sitemaps [skip ci]"');
       execSync('git push');
       console.log('Successfully pushed changes to GitHub.');
     } else {
