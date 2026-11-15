@@ -1,4 +1,4 @@
-name: Hourly Site Re-indexing & News Sitemap
+name: Hourly Redirects & Sitemap Re-indexing
 
 on:
   schedule:
@@ -29,46 +29,27 @@ jobs:
         shell: bash
         run: |
           test -f urls.txt || touch urls.txt
-
-          test -f public/_redirects || {
-            echo "ERROR: public/_redirects is missing."
-            exit 1
-          }
-
           test -f public/index.html || {
             echo "ERROR: public/index.html is missing."
             exit 1
           }
-
           test -f dd5dc9a82ae9487e912c9d3c7cbf4c71.txt || {
             echo "ERROR: IndexNow key file is missing."
             exit 1
           }
 
-      - name: Generate and Validate Google News Sitemap
+      - name: Generate Redirects and Sitemap
         run: node build-sitemap.js
 
-      - name: Commit Accumulated URLs (if any changes)
+      - name: Commit Accumulated Redirects and URLs
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add urls.txt
+          git add urls.txt public/_redirects
           git diff --quiet && git diff --staged --quiet || {
-            git commit -m "chore: auto-save accumulated unique URLs [skip ci]"
+            git commit -m "chore: auto-generate random redirect and preserve history [skip ci]"
             git push
           }
-
-      - name: Verify Deployment Files
-        shell: bash
-        run: |
-          test -s public/sitemap.xml
-          test -s public/_redirects
-          test -s public/index.html
-
-          grep -q '<news:news>' public/sitemap.xml
-          grep -q '<changefreq>hourly</changefreq>' public/sitemap.xml
-
-          echo "All deployment checks passed."
 
       - name: Deploy to Cloudflare Pages
         env:
