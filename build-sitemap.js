@@ -12,14 +12,13 @@ const REDIRECTS_FILE = path.join(PUBLIC_DIR, '_redirects');
 const SITEMAP_FILE = path.join(PUBLIC_DIR, 'sitemap.xml');
 const ROOT_KEY_FILE = path.join(ROOT, KEY_FILENAME);
 
-// Target destination links pool (Aap yahan apne Google Forms ya destination links rakh sakte hain)
+// Target destination links pool
 const TARGET_DESTINATIONS = [
   "https://docs.google.com/forms/d/1bYAG8-tN6-j_A9OHAd_Pk2vk167nBda8mvjCixWqFrU/edit",
   "https://docs.google.com/forms/d/1SVagHdDqsiqd7SCWcVK5xqvonSPW6-H1ELcgHpKlWZQ/edit",
   "https://docs.google.com/forms/d/1nyXb6NssG8gFRsVXJG6twEhMF1Qxy19A-PlTErG5U7w/edit"
 ];
 
-// Helper to generate a random 7-character string (e.g., /nyhfzhq)
 function generateRandomString(length = 7) {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
@@ -29,7 +28,7 @@ function generateRandomString(length = 7) {
   return result;
 }
 
-// 1. Read existing redirects history from public/_redirects if present
+// 1. Read existing redirects history from public/_redirects
 let existingRedirectLines = [];
 if (fs.existsSync(REDIRECTS_FILE)) {
   existingRedirectLines = fs.readFileSync(REDIRECTS_FILE, 'utf8')
@@ -38,19 +37,16 @@ if (fs.existsSync(REDIRECTS_FILE)) {
     .filter(Boolean);
 }
 
-// Parse existing redirects to keep a record of used paths and destinations
-const redirectMap = new Map(); // path -> destination
+const redirectMap = new Map();
 for (const line of existingRedirectLines) {
   if (line.startsWith('#')) continue;
   const parts = line.split(/\s+/);
   if (parts.length >= 2) {
-    const p = parts[0];
-    const d = parts[1];
-    redirectMap.set(p, d);
+    redirectMap.set(parts[0], parts[1]);
   }
 }
 
-// 2. Automatically generate a new random redirect rule if needed (e.g., 1 new per build)
+// 2. Generate a new random redirect rule per build
 const randomSlug = `/${generateRandomString(7)}`;
 const randomDestination = TARGET_DESTINATIONS[Math.floor(Math.random() * TARGET_DESTINATIONS.length)];
 
@@ -58,7 +54,7 @@ if (!redirectMap.has(randomSlug)) {
   redirectMap.set(randomSlug, randomDestination);
 }
 
-// Rebuild cumulative _redirects content
+// Save back updated _redirects
 let redirectsContent = "# Cloudflare Pages Redirect Rules (Cumulative & Preserved)\n";
 for (const [p, d] of redirectMap.entries()) {
   redirectsContent += `${p}    ${d}    301\n`;
@@ -67,8 +63,17 @@ for (const [p, d] of redirectMap.entries()) {
 fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 fs.writeFileSync(REDIRECTS_FILE, redirectsContent.trim() + '\n', 'utf8');
 
-// 3. Extract all full URLs for urls.txt and Sitemap generation (Properly declared here)
-const urlsSet = new Set();
+// 3. Read existing URLs from urls.txt history
+let existingUrls = [];
+if (fs.existsSync(URLS_FILE)) {
+  existingUrls = fs.readFileSync(URLS_FILE, 'utf8')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+// 4. Combine base domain, all historical urls.txt entries, AND all redirect paths into a Set
+const urlsSet = new Set(existingUrls);
 urlsSet.add(`${DOMAIN}/`);
 
 for (const [p] of redirectMap.entries()) {
@@ -77,7 +82,7 @@ for (const [p] of redirectMap.entries()) {
 
 const finalUrls = Array.from(urlsSet);
 
-// Save cumulative history to urls.txt permanently
+// Permanently save cumulative URLs back to urls.txt
 fs.writeFileSync(URLS_FILE, finalUrls.join('\n') + '\n', 'utf8');
 
 const lastmod = new Date().toISOString();
@@ -91,7 +96,7 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-// 4. Generate Google News & Standard XML Sitemap containing all preserved redirect slugs
+// 5. Generate Sitemap XML containing ALL cumulative URLs
 let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
 xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n';
 xml += '        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n';
@@ -127,9 +132,6 @@ for (const urlStr of finalUrls) {
 xml += '</urlset>\n';
 
 fs.writeFileSync(SITEMAP_FILE, xml, 'utf8');
-
-// Sync IndexNow key file
 fs.writeFileSync(path.join(PUBLIC_DIR, KEY_FILENAME), KEY, 'utf8');
 
-console.log(`Successfully generated redirect rules. Total preserved redirects: ${redirectMap.size}`);
-console.log(`Sitemap generated with ${finalUrls.length} URLs.`);
+console.log(`Successfully generated sitemap. Total cumulative URLs included: ${finalUrls.length}`);
