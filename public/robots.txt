@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://news-pageaura.pages.dev/sitemap.xml
