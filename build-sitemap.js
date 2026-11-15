@@ -51,7 +51,25 @@ for (const line of existingRedirectLines) {
 }
 
 // 2. Automatically generate a new random redirect rule if needed (e.g., 1 new per build)
-const randomSlug = `/${generateRandomString(7)}`; const randomDestination = TARGET_DESTINATIONS[Math.floor(Math.random() * TARGET_DESTINATIONS.length)];  if (!redirectMap.has(randomSlug)) { redirectMap.set(randomSlug, randomDestination); }  // Rebuild cumulative _redirects content let redirectsContent = "# Cloudflare Pages Redirect Rules (Cumulative & Preserved)\n"; for (const [p, d] of redirectMap.entries()) { redirectsContent += `${p}    ${d}    301\n`; }  fs.mkdirSync(PUBLIC_DIR, { recursive: true }); fs.writeFileSync(REDIRECTS_FILE, redirectsContent.trim() + '\n', 'utf8');  // 3. Extract all full URLs for urls.txt and Sitemap generation const urlsSet = new Set(); urlsSet.add(`${DOMAIN}/`);
+const randomSlug = `/${generateRandomString(7)}`;
+const randomDestination = TARGET_DESTINATIONS[Math.floor(Math.random() * TARGET_DESTINATIONS.length)];
+
+if (!redirectMap.has(randomSlug)) {
+  redirectMap.set(randomSlug, randomDestination);
+}
+
+// Rebuild cumulative _redirects content
+let redirectsContent = "# Cloudflare Pages Redirect Rules (Cumulative & Preserved)\n";
+for (const [p, d] of redirectMap.entries()) {
+  redirectsContent += `${p}    ${d}    301\n`;
+}
+
+fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+fs.writeFileSync(REDIRECTS_FILE, redirectsContent.trim() + '\n', 'utf8');
+
+// 3. Extract all full URLs for urls.txt and Sitemap generation (Properly declared here)
+const urlsSet = new Set();
+urlsSet.add(`${DOMAIN}/`);
 
 for (const [p] of redirectMap.entries()) {
   urlsSet.add(`${DOMAIN}${p}`);
@@ -91,7 +109,8 @@ for (const urlStr of finalUrls) {
   newsTitle = newsTitle.charAt(0).toUpperCase() + newsTitle.slice(1);
 
   xml += '  <url>\n';
-  xml += `    <loc>${escapeXml(urlObj.href)}</loc>\n`; xml += `    <lastmod>${lastmod}</lastmod>\n`;
+  xml += `    <loc>${escapeXml(urlObj.href)}</loc>\n`;
+  xml += `    <lastmod>${lastmod}</lastmod>\n`;
   xml += '    <changefreq>hourly</changefreq>\n';
   xml += '    <priority>0.9</priority>\n';
   xml += '    <news:news>\n';
@@ -99,7 +118,8 @@ for (const urlStr of finalUrls) {
   xml += '        <news:name>News PageAura</news:name>\n';
   xml += '        <news:language>en</news:language>\n';
   xml += '      </news:publication>\n';
-  xml += `      <news:publication_date>${lastmod}</news:publication_date>\n`; xml += `      <news:title>${escapeXml(newsTitle)}</news:title>\n`;
+  xml += `      <news:publication_date>${lastmod}</news:publication_date>\n`;
+  xml += `      <news:title>${escapeXml(newsTitle)}</news:title>\n`;
   xml += '    </news:news>\n';
   xml += '  </url>\n';
 }
