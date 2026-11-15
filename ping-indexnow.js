@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const HOST = 'news-pageaura.pages.dev';
+const HOST = 'news.pageaura.xyz';
 const KEY = 'dd5dc9a82ae9487e912c9d3c7cbf4c71';
 const KEY_LOCATION = `https://${HOST}/${KEY}.txt`;
 
