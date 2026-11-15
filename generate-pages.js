@@ -63,7 +63,7 @@ function run() {
     // Create hierarchical folder
     fs.mkdirSync(targetFolder, { recursive: true });
 
-    // Generate SEO-friendly index.html
+    // Generate SEO-friendly index.html with both Meta robots and JS redirect
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -120,9 +120,7 @@ function run() {
   }
   fs.writeFileSync(hourlyUrlsFilePath, hourlyUrls.join('\n') + '\n', 'utf8');
 
-  // 6. Simplified Sitemap Generation (Avoiding Deep Nested Index Errors)
-  // Instead of multi-level indexes pointing to indexes, we create a direct Master Sitemap Index
-  // pointing directly to the Hour-level URL sitemaps (or a clean flat list of sitemaps).
+  // 6. Flat Sitemap Generation to eliminate nested loops completely
   const sitemapsDir = path.join(PUBLIC_DIR, 'sitemaps');
   fs.mkdirSync(sitemapsDir, { recursive: true });
 
@@ -185,7 +183,7 @@ function run() {
     }
   }
 
-  // Generate a clean master sitemap index directly pointing to the hour sitemaps (preventing multi-index loops)
+  // Master sitemap direct point to hour sitemaps
   let masterXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   masterXml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
   for (const hUrl of allHourSitemaps) {
@@ -197,7 +195,7 @@ function run() {
   masterXml += '</sitemapindex>\n';
 
   fs.writeFileSync(path.join(PUBLIC_DIR, 'sitemap.xml'), masterXml, 'utf8');
-  console.log('Clean hierarchical sitemaps generated successfully.');
+  console.log('Flat master sitemap generated successfully.');
 
   // 7. Automatic Git Commit and Push
   try {
@@ -208,7 +206,7 @@ function run() {
     
     const status = execSync('git status --porcelain').toString();
     if (status.trim().length > 0) {
-      execSync('git commit -m "chore: batch generate pages, hourly urls lists and flat sitemaps [skip ci]"');
+      execSync('git commit -m "chore: batch generate pages with dual robots tags and flat sitemaps [skip ci]"');
       execSync('git push');
       console.log('Successfully pushed changes to GitHub.');
     } else {
